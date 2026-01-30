@@ -14,7 +14,7 @@ export const typeOrmConfig: TypeOrmModuleOptions = {
     database: process.env.DB_NAME || 'crafts_db',
     entities: [__dirname + '/../**/*.entity{.ts,.js}'],
     synchronize: false,//process.env.NODE_ENV !== 'production',
-    logging: process.env.NODE_ENV === 'development',
+    logging: ['error', 'warn'],//process.env.NODE_ENV === 'development',
     migrations: [__dirname + '/../migrations/*{.ts,.js}'],
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
 };

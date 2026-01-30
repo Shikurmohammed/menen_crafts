@@ -36,7 +36,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 @ApiTags('orders')
 @ApiBearerAuth()
 @Controller('orders')
-@UseGuards(JwtAuthGuard, RolesGuard)
+//@UseGuards(JwtAuthGuard, RolesGuard)
 export class OrdersController {
     constructor(private readonly ordersService: OrdersService) { }
 
@@ -75,6 +75,10 @@ export class OrdersController {
         @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit?: number,
     ) {
         return await this.ordersService.getUserOrders(user.id, page, limit);
+    }
+    //All Orders
+    async getAllOrders() {
+        return await this.ordersService.findAll();
     }
 
     @Get('statistics')
