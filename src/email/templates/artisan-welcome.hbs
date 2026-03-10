@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Welcome to Menen Crafts Artisan Community</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background: #8b5cf6;
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+        .content {
+            background: #ffffff;
+            padding: 30px;
+            border: 1px solid #e5e7eb;
+            border-top: none;
+        }
+        .tips {
+            background: #f5f3ff;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #8b5cf6;
+        }
+        .button {
+            display: inline-block;
+            padding: 12px 24px;
+            background: #8b5cf6;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            margin: 20px 0;
+            font-weight: 600;
+        }
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome Artisan! 🎨</h1>
+        </div>
+        <div class="content">
+            <h2>Hello {{name}},</h2>
+            <p>Congratulations on becoming an artisan at Menen Crafts! We're thrilled to have your talent on our platform.</p>
+            
+            <div class="tips">
+                <h3>Getting Started Tips:</h3>
+                <ul>
+                    <li><strong>Complete your profile:</strong> Add a profile picture, bio, and contact information</li>
+                    <li><strong>List your first craft:</strong> Upload high-quality photos and write detailed descriptions</li>
+                    <li><strong>Set fair prices:</strong> Research similar crafts and price competitively</li>
+                    <li><strong>Respond to inquiries:</strong> Reply to customer messages promptly</li>
+                </ul>
+            </div>
+            
+            <div style="text-align: center;">
+                <a href="{{dashboardUrl}}" class="button">Go to Artisan Dashboard</a>
+            </div>
+            
+            <p>Need help getting started? Check out our <a href="{{guideUrl}}">Artisan Guide</a> for detailed instructions.</p>
+            
+            <p>We're here to help you succeed!</p>
+            <p><strong>The Menen Crafts Team</strong></p>
+        </div>
+        <div class="footer">
+            <p>© 2026 Menen Crafts. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>

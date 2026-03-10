@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 
-import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Order } from './order.entity';
@@ -14,6 +14,7 @@ import { CreateOrderItemDto } from './dto/create-order-item.dto';
 import { UpdateOrderItemDto } from './dto/update-order-item.dto';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderStatus } from 'src/enums/OrderStatus';
+import { EmailService } from 'src/email/email.service';
 
 @Injectable()
 export class OrdersService {
@@ -23,6 +24,7 @@ export class OrdersService {
         private orderItemsService: OrderItemsService,
         @Inject(forwardRef(() => CraftsService))
         private craftsService: CraftsService,
+        private emailService: EmailService
     ) { }
 
     async create(createOrderDto: CreateOrderDto, currentUser: User): Promise<Order> {
@@ -41,7 +43,7 @@ export class OrdersService {
             await this.orderItemsService.calculateOrderTotal(orderItems);
 
         // Use userId from DTO if provided, otherwise use the logged-in user's ID
-        const finalUserId = createOrderDto.userId?.toString() ?? currentUser.id.toString();
+        const finalUserId = createOrderDto.userId ?? currentUser.id;
 
         // 4. Create and Save Order
         const order = this.ordersRepository.create({
@@ -55,6 +57,7 @@ export class OrdersService {
             shippingAddress: createOrderDto.shippingAddress,
             billingAddress: createOrderDto.billingAddress || createOrderDto.shippingAddress,
             notes: createOrderDto.notes,
+            paymentMethod: createOrderDto.paymentMethod,
         });
 
         const savedOrder = await this.ordersRepository.save(order);
@@ -62,10 +65,13 @@ export class OrdersService {
         // 5. Reserve stock
         await this.orderItemsService.reserveStock(orderItems);
 
+        //6. Send order confirmation email 
+        await this.emailService.sendOrderConfirmation(currentUser.email, savedOrder);
+
         return savedOrder;
     }
     async findAll(
-        userId?: string,
+        userId?: number,
         status?: OrderStatus,
         page = 1,
         limit = 10,
@@ -91,8 +97,41 @@ export class OrdersService {
 
         return { orders, total };
     }
+    // orders.service.ts
+    async findArtisanOrders(artisanId: number, status?: string, page = 1, limit = 10) {
+        try {
+            // Use 'ord' as alias instead of 'order'
+            const query = this.ordersRepository.createQueryBuilder('ord')
+                .innerJoinAndSelect('ord.items', 'items')
+                .innerJoinAndSelect('items.craft', 'craft')
+                .innerJoin('craft.artisan', 'artisan')
+                .leftJoinAndSelect('ord.user', 'customer')
+                .where('artisan.id = :artisanId', { artisanId });
 
-    async findOne(id: string, userId?: string): Promise<Order> {
+            if (status) {
+                // Normalize to lowercase to match your enum ('pending')
+                const statusValue = status.toLowerCase();
+                console.log('Filtering by status:', statusValue);
+
+                // Reference 'ord.status' instead of 'order.status'
+                query.andWhere('ord.status::text = :statusValue', { statusValue });
+            }
+
+            const [orders, total] = await query
+                .orderBy('ord.createdAt', 'DESC') // Updated alias here too
+                .skip((page - 1) * limit)
+                .take(limit)
+                .getManyAndCount();
+
+            return { data: orders, total };
+        } catch (error) {
+            console.error('TypeORM Query Error:', error);
+            throw new InternalServerErrorException('Error fetching artisan orders');
+        }
+    }
+
+
+    async findOne(id: number, userId?: number): Promise<Order> {
         const where: any = { id };
 
         if (userId) {
@@ -112,7 +151,7 @@ export class OrdersService {
     }
 
     async update(id: number, updateOrderDto: UpdateOrderItemDto, userId?: number): Promise<Order> {
-        const order = await this.findOne(id + "", userId + "");
+        const order = await this.findOne(id, userId);
 
         // If status is being updated to CANCELLED, release stock
         if (updateOrderDto.status === OrderStatus.CANCELLED && order.status !== OrderStatus.CANCELLED) {
@@ -129,12 +168,13 @@ export class OrdersService {
         }
 
         Object.assign(order, updateOrderDto);
+        //
 
         return await this.ordersRepository.save(order);
     }
 
     async remove(id: number, userId?: number): Promise<void> {
-        const order = await this.findOne(id + "", userId + "");
+        const order = await this.findOne(id, userId);
 
         // Only allow deletion if order is pending or cancelled
         if (![OrderStatus.PENDING, OrderStatus.CANCELLED].includes(order.status)) {
@@ -154,14 +194,17 @@ export class OrdersService {
     }
 
     async getUserOrders(userId: number, page = 1, limit = 10): Promise<{ orders: Order[]; total: number }> {
-        return this.findAll(userId + '', undefined, page, limit);
+        return this.findAll(userId, undefined, page, limit);
     }
 
     async updateStatus(id: number, status: OrderStatus, userId?: number): Promise<Order> {
-        return this.update(id, { status }, userId);
+        const order = await this.update(id, { status }, userId);
+        //Send order status update email 
+        await this.emailService.sendOrderStatusUpdate(order.user.email, order);
+        return order;
     }
 
-    async addTrackingNumber(id: string, trackingNumber: string, userId?: string): Promise<Order> {
+    async addTrackingNumber(id: number, trackingNumber: string, userId?: number): Promise<Order> {
         const order = await this.findOne(id, userId);
 
         if (order.status !== OrderStatus.SHIPPED && order.status !== OrderStatus.DELIVERED) {

@@ -32,7 +32,7 @@ export class OrderItemsController {
     @Get(':id')
     @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get order item by ID (admin only)' })
-    @ApiParam({ name: 'id', type: String })
+    @ApiParam({ name: 'id', type: Number })
     async findOne(@Param('id', ParseIntPipe) id: number) {
         return await this.orderItemsService.findOne(id);
     }
@@ -40,7 +40,7 @@ export class OrderItemsController {
     @Patch(':id')
     @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Update order item (admin only)' })
-    @ApiParam({ name: 'id', type: String })
+    @ApiParam({ name: 'id', type: Number })
     async update(
         @Param('id', ParseIntPipe) id: number,
         @Body() updateOrderItemDto: UpdateOrderItemDto,
@@ -52,7 +52,7 @@ export class OrderItemsController {
     @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Delete order item (admin only)' })
     @ApiParam({ name: 'id', type: String })
-    async remove(@Param('id', ParseIntPipe) id: string) {
+    async remove(@Param('id', ParseIntPipe) id: number) {
         await this.orderItemsService.remove(id);
         return { message: 'Order item deleted successfully' };
     }

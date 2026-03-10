@@ -5,12 +5,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from 'src/auth/auth.module';
+import { UploadsModule } from 'src/uploads/uploads.module';
 
 @Module({
     imports: [
         // This line registers the Repository for the User entity
         TypeOrmModule.forFeature([User]),
         // forwardRef(() => AuthModule),
+        UploadsModule,
     ],
     controllers: [UsersController],
     providers: [UsersService],

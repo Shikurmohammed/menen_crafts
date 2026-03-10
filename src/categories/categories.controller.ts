@@ -8,6 +8,8 @@ import {
     Delete,
     UseGuards,
     ParseIntPipe,
+    HttpStatus,
+    HttpCode,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
@@ -18,6 +20,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { UserRole } from 'src/enums/UserRole.enum';
 
 @Controller('categories')
+
 export class CategoriesController {
     constructor(private readonly categoriesService: CategoriesService) { }
 
@@ -30,16 +33,15 @@ export class CategoriesController {
     async findOne(@Param('id', ParseIntPipe) id: number) {
         return await this.categoriesService.findOne(id);
     }
-
-    @Post()
     @UseGuards(JwtAuthGuard, RolesGuard)
+    @Post()
+    @HttpCode(HttpStatus.CREATED)
     @Roles(UserRole.ADMIN)
     create(@Body() createCategoryDto: CreateCategoryDto) {
         return this.categoriesService.create(createCategoryDto);
     }
-
-    @Patch(':id')
     @UseGuards(JwtAuthGuard, RolesGuard)
+    @Patch(':id')
     @Roles(UserRole.ADMIN)
     update(
         @Param('id', ParseIntPipe) id: number,
@@ -47,9 +49,8 @@ export class CategoriesController {
     ) {
         return this.categoriesService.update(id, updateCategoryDto);
     }
-
-    @Delete(':id')
     @UseGuards(JwtAuthGuard, RolesGuard)
+    @Delete(':id')
     @Roles(UserRole.ADMIN)
     remove(@Param('id', ParseIntPipe) id: number) {
         return this.categoriesService.remove(id);

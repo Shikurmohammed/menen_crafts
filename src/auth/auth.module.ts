@@ -17,7 +17,7 @@ import { RolesGuard } from './guards/roles.guard';
             useFactory: async (configService: ConfigService) => ({
                 secret: configService.get('JWT_SECRET'),
                 signOptions: {
-                    expiresIn: configService.get('JWT_EXPIRATION'),
+                    expiresIn: configService.get('JWT_EXPIRATION') || '15m'//'1m', // Default to 1 minute if not set
                 },
             }),
             inject: [ConfigService],
@@ -29,8 +29,8 @@ import { RolesGuard } from './guards/roles.guard';
         JwtStrategy,
         JwtAuthGuard,
         RolesGuard,
-        { provide: APP_GUARD, useClass: JwtAuthGuard },
-        { provide: APP_GUARD, useClass: RolesGuard },
+        // { provide: APP_GUARD, useClass: JwtAuthGuard },
+        // { provide: APP_GUARD, useClass: RolesGuard },
     ],
     exports: [AuthService, JwtModule],
 })

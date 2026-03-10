@@ -51,6 +51,28 @@ export class Craft {
     @Column({ default: 0 })
     averageRating: number;
 
+     // New fields
+    @Column({ nullable: true })
+    region?: string;
+
+    @Column('text', { nullable: true })
+    culturalSignificance?: string;
+
+    @Column({ nullable: true })
+    estimatedDelivery?: string; // e.g., "3-7 days"
+
+    @Column({ default: false })
+    isTraditional: boolean;
+
+    @Column({ nullable: true })
+    materialSource?: string; // e.g., "Ethiopian cotton"
+
+    @Column({ nullable: true })
+    craftType?: string; // e.g., "woven", "carved"
+
+    @Column({ default: false })
+    freeDelivery: boolean;
+
     @CreateDateColumn()
     createdAt: Date;
 

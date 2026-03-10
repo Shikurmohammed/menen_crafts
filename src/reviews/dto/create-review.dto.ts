@@ -1,8 +1,8 @@
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsArray, IsBoolean, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+
 
 export class CreateReviewDto {
-    @IsNumber()
-    @IsNotEmpty()
+    @IsInt()
     craftId: number;
 
     @IsInt()
@@ -13,4 +13,32 @@ export class CreateReviewDto {
     @IsString()
     @IsOptional()
     comment?: string;
+
+    @IsArray()
+    @IsOptional()
+    images?: string[];
+
+    @IsBoolean()
+    @IsOptional()
+    isVerifiedPurchase?: boolean;
 }
+
+
+
+
+
+
+// export class CreateReviewDto {
+//     @IsNumber()
+//     @IsNotEmpty()
+//     craftId: number;
+
+//     @IsInt()
+//     @Min(1)
+//     @Max(5)
+//     rating: number;
+
+//     @IsString()
+//     @IsOptional()
+//     comment?: string;
+// }

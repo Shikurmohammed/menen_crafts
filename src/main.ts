@@ -1,12 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 import * as compression from 'compression';
 import helmet from 'helmet';
 import * as morgan from 'morgan';
+import * as cookieParser from 'cookie-parser';
+import * as express from 'express';
+import { LoggingInterceptor } from './interceptors/LoggingInterceptor';
+
+
 /*
 **Entry point of the application
 ** Starts the NestJS application by creating an instance of the AppModule
@@ -14,10 +19,17 @@ import * as morgan from 'morgan';
 
 */
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule,
+    {logger: ['log', 'error', 'warn'],}
+  );
+  app.useGlobalInterceptors(new LoggingInterceptor());
 
+  app.use(cookieParser());
   // Security middleware
-  app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow images/cookies across ports
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false, // Disable CSP in dev to avoid blocking Swagger/Scripts
+}));
 
   // Compression middleware
   app.use(compression());
@@ -38,12 +50,23 @@ async function bootstrap() {
     prefix: '/uploads/',
   });
 
+  app.use('/uploads', express.static(join(process.cwd(), 'uploads')));
   // Global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: false,
+      exceptionFactory: (validationErrors) => {
+        // Extract just the error strings from the constraints object
+        const messages = validationErrors.map((error) =>
+          Object.values(error.constraints || {}).join(', ')
+        );
+        // Log this to your terminal to see EXACTLY which field is failing
+        console.log('Validation failing for:', messages);
+
+        return new BadRequestException(messages);
+      },
     }),
   );
 
@@ -71,7 +94,7 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
   await app.listen(port);
 
-  console.log(`🚀 Application is running on: http://localhost:${port}`);
-  console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
+  // console.log(`🚀 Application is running on: http://localhost:${port}`);
+  //console.log(`📚 API Documentation: http://localhost:${port}/api/docs`);
 }
 bootstrap();

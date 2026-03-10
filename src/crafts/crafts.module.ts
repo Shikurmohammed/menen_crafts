@@ -7,6 +7,7 @@ import { CategoriesModule } from '../categories/categories.module';
 import { ReviewsModule } from '../reviews/reviews.module';
 import { UsersModule } from '../users/users.module';
 import { Category } from 'src/categories/category.entity';
+import { UploadsModule } from 'src/uploads/uploads.module';
 
 @Module({
     imports: [
@@ -14,6 +15,7 @@ import { Category } from 'src/categories/category.entity';
         forwardRef(() => CategoriesModule),
         forwardRef(() => ReviewsModule),
         forwardRef(() => UsersModule),
+        forwardRef(() => UploadsModule),
     ],
     controllers: [CraftsController],
     providers: [CraftsService],

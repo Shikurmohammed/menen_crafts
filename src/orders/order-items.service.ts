@@ -103,7 +103,7 @@ export class OrderItemsService {
         return await this.orderItemRepository.save(orderItem);
     }
 
-    async remove(id: string): Promise<void> {
+    async remove(id: number): Promise<void> {
         const result = await this.orderItemRepository.delete(id);
 
         if (result.affected === 0) {

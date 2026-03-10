@@ -16,7 +16,7 @@ export class Order {
     user: User;
 
     @Column()
-    userId: string;
+    userId: number;
 
     @OneToMany(() => OrderItem, orderItem => orderItem.order, {
         cascade: true,
@@ -26,7 +26,8 @@ export class Order {
 
     @Column('decimal', { precision: 10, scale: 2 })
     totalAmount: number;
-
+    @Column({ nullable: true })
+    paymentMethod?: string; // e.g., 'credit_card', 'paypal', 'cash_on_delivery'
     @Column({
         type: 'enum',
         enum: OrderStatus,

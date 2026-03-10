@@ -35,4 +35,7 @@ export class CreateOrderDto {
     @IsEnum(OrderStatus)
     status?: OrderStatus; // Allows setting status (e.g., 'shipped') immediately
 
+    @IsString()
+    @IsOptional()
+    paymentMethod?: string;// e.g., 'credit_card', 'paypal', 'cash_on_delivery'
 }

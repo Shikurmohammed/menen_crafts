@@ -52,7 +52,7 @@ export class OrdersController {
     }
 
     @Get()
-    @Roles(UserRole.ADMIN)
+   // @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Get all orders (admin only)' })
     @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
     @ApiQuery({ name: 'page', required: false, type: Number })
@@ -85,22 +85,33 @@ export class OrdersController {
         const userId = user.role === UserRole.ADMIN ? undefined : user.id;
         return await this.ordersService.getOrderStatistics(userId);
     }
-
+@Get('artisan')
+@Roles(UserRole.ARTISAN, UserRole.ADMIN)
+@ApiOperation({ summary: 'Get artisan specific orders' })
+async getArtisanOrders(
+    @CurrentUser() user: User,
+    @Query('status') status?: OrderStatus,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page?: number,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit?: number,
+) {
+    // Logic to fetch orders belonging to this artisan's crafts
+    return await this.ordersService.findArtisanOrders(user.id, status, page, limit);
+}
     @Get(':id')
     @ApiOperation({ summary: 'Get order by ID' })
-    @ApiParam({ name: 'id', type: String })
+    @ApiParam({ name: 'id', type: Number })
     async findOne(
-        @Param('id', ParseUUIDPipe) id: string,
+        @Param('id', ParseIntPipe) id: number,
         @CurrentUser() user: User,
     ) {
         // Regular users can only see their own orders
         const userId = user.role === UserRole.ADMIN ? undefined : user.id;
-        return await this.ordersService.findOne(id, userId + "");
+return await this.ordersService.findOne(id, userId);
     }
 
     @Patch(':id')
     @ApiOperation({ summary: 'Update order' })
-    @ApiParam({ name: 'id', type: String })
+    @ApiParam({ name: 'id', type: Number })
     async update(
         @Param('id', ParseIntPipe) id: number,
         @Body() updateOrderDto: UpdateOrderItemDto,
@@ -114,9 +125,9 @@ export class OrdersController {
     @Patch(':id/status')
     @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Update order status (admin only)' })
-    @ApiParam({ name: 'id', type: String })
+    @ApiParam({ name: 'id', type: Number })
     async updateStatus(
-        @Param('id', ParseUUIDPipe) id: number,
+        @Param('id', ParseIntPipe) id: number,
         @Body('status') status: OrderStatus,
     ) {
         return await this.ordersService.updateStatus(id, status);
@@ -125,9 +136,9 @@ export class OrdersController {
     @Patch(':id/tracking')
     @Roles(UserRole.ADMIN)
     @ApiOperation({ summary: 'Add tracking number to order (admin only)' })
-    @ApiParam({ name: 'id', type: String })
+    @ApiParam({ name: 'id', type: Number })
     async addTrackingNumber(
-        @Param('id', ParseIntPipe) id: string,
+        @Param('id', ParseIntPipe) id: number,
         @Body('trackingNumber') trackingNumber: string,
     ) {
         return await this.ordersService.addTrackingNumber(id, trackingNumber);
@@ -135,7 +146,7 @@ export class OrdersController {
 
     @Delete(':id')
     @ApiOperation({ summary: 'Delete order' })
-    @ApiParam({ name: 'id', type: String })
+    @ApiParam({ name: 'id', type: Number })
     async remove(
         @Param('id', ParseIntPipe) id: number,
         @CurrentUser() user: User,

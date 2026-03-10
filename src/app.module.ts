@@ -12,6 +12,16 @@ import { ReviewsModule } from './reviews/reviews.module';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { typeOrmConfig } from './config/typeorm.config';
 import { ConfigService, ConfigModule } from '@nestjs/config';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { CustomThrottlerGuard } from './exceptions/CustomThrottlerGuard';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { ArtisansModule } from './artisans/artisans.module';
+import { DashboardModule } from './dashboard/dashboard.module';
+import { SearchModule } from './search/search.module';
+import { EmailModule } from './email/email.module';
+import { Message } from './messages/message.entity';
+import { MessagesModule } from './messages/messages.module';
 /**
  ** Module combines controllers, providers also other modules, TestFiles, Entity Files, configurations to form the application structure.
  ** NestJs is aware of this module as the root module to start the application.
@@ -31,6 +41,14 @@ import { ConfigService, ConfigModule } from '@nestjs/config';
         autoLoadEntities: true,
       }),
     }),
+    ThrottlerModule.forRoot({
+      throttlers: [
+        {
+          ttl: 60,   // seconds
+          limit: 10, // requests per ttl
+        },
+      ],
+    }),
     AuthModule,
     UsersModule,
     CraftsModule,
@@ -38,6 +56,18 @@ import { ConfigService, ConfigModule } from '@nestjs/config';
     OrdersModule,
     ReviewsModule,
     UploadsModule,
+    ArtisansModule,
+    SearchModule,
+    AnalyticsModule,
+    DashboardModule,
+    EmailModule,
+    MessagesModule,
   ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: CustomThrottlerGuard, //ThrottlerGuard,
+    }
+  ]
 })
 export class AppModule { }
