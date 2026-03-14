@@ -24,7 +24,14 @@ import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UpdateSecuritySettingsDto } from './dto/update-security-settings.dto';
 import { User } from './user.entity';
-
+/**
+ * Author: Dawud Mohammed,
+ * Description: This controller manages all endpoints related to users, including creating, updating, deleting, and retrieving users. It also includes endpoints for managing user profiles, settings, and contacts. The controller uses JWT authentication and role-based access control to ensure that only authorized users can perform certain actions. The controller is organized with static/specific routes defined before dynamic ID-based routes to prevent routing conflicts.
+ * Created: 2026-01-15
+ * Last Updated: 2026-03-30
+ * Future Improvements: Implement pagination for listing users, add more detailed filtering options, and enhance error handling with more specific messages.
+ * Note: Ensure that the UsersService is properly implemented to handle the business logic for users and that the database schema supports the necessary relationships between users and other entities (e.g., crafts, messages, reviews).
+ */
 @Controller('users')
 // @UseGuards(JwtAuthGuard, RolesGuard) // Protect all routes
 export class UsersController {

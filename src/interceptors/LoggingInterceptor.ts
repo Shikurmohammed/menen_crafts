@@ -13,7 +13,7 @@ export class LoggingInterceptor implements NestInterceptor {
     const method = req.method;
     const url = req.url;
     
-    this.logger.log(`➡️  ${method} ${url}`);
+    this.logger.log(` ${method} ${url}`);
     
     // Log headers (except authorization)
     const headers = { ...req.headers };
@@ -34,10 +34,10 @@ export class LoggingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: (data) => {
-          this.logger.log(`⬅️  ${method} ${url} ${Date.now() - now}ms`);
+          this.logger.log(` ${method} ${url} ${Date.now() - now}ms`);
         },
         error: (error) => {
-          this.logger.error(`❌  ${method} ${url} ${Date.now() - now}ms - ${error.message}`);
+          this.logger.error(` ${method} ${url} ${Date.now() - now}ms - ${error.message}`);
           this.logger.error(error.stack);
         },
       }),

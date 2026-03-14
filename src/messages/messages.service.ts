@@ -1,24 +1,19 @@
-import { 
-    Injectable, 
-    NotFoundException, 
-    BadRequestException, 
-    ForbiddenException,
-    Logger 
-} from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger, forwardRef, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, Brackets } from 'typeorm';
+import { Repository, Not, In } from 'typeorm';
 import { Conversation, ConversationStatus } from './conversation.entity';
 import { Message, MessageStatus } from './message.entity';
 import { User } from '../users/user.entity';
 import { Craft } from '../crafts/craft.entity';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
+import { ConversationResponseDto } from './dto/conversation-response.dto';
 import { EmailService } from '../email/email.service';
 import { MessagesGateway } from './messages.gateway';
-import { ConversationResponseDto } from './dto/conversation-response.dto';
 
 @Injectable()
 export class MessagesService {
+
     private readonly logger = new Logger(MessagesService.name);
 
     constructor(
@@ -31,8 +26,26 @@ export class MessagesService {
         @InjectRepository(Craft)
         private craftRepository: Repository<Craft>,
         private emailService: EmailService,
+        @Inject(forwardRef(() => MessagesGateway))
         private messagesGateway: MessagesGateway,
-    ) {}
+    ) { }
+
+
+    async getUserById(userId: number): Promise<User> {
+       // this.logger.log(`🔍 Getting user by ID: ${userId}`);
+        const user = await this.userRepository.findOne({
+            where: { id: userId },
+            select: ['id', 'firstName', 'lastName', 'avatar', 'role']
+        });
+
+        if (!user) {
+            this.logger.error(`❌ User ${userId} not found`);
+            throw new NotFoundException('User not found');
+        }
+
+      //  this.logger.log(`✅ Found user: ${user.firstName} ${user.lastName}`);
+        return user;
+    }
 
     /**
      * Get all conversations for a user
@@ -42,6 +55,8 @@ export class MessagesService {
         page: number = 1,
         limit: number = 20,
     ): Promise<{ conversations: ConversationResponseDto[]; total: number }> {
+        //this.logger.log(`📋 Getting conversations for user ${userId} (page: ${page}, limit: ${limit})`);
+        
         const skip = (page - 1) * limit;
 
         const queryBuilder = this.conversationRepository
@@ -60,6 +75,7 @@ export class MessagesService {
             .take(limit);
 
         const [conversations, total] = await queryBuilder.getManyAndCount();
+        //this.logger.log(`📋 Found ${conversations.length} conversations for user ${userId}`);
 
         // Get unread counts for each conversation
         const enhancedConversations = await Promise.all(
@@ -72,8 +88,12 @@ export class MessagesService {
                     },
                 });
 
-                const otherParticipant = 
+                const otherParticipant =
                     conv.participant1Id === userId ? conv.participant2 : conv.participant1;
+
+                // Get online status from gateway
+                const isOnline = this.messagesGateway.isUserOnline(otherParticipant.id);
+                //this.logger.log(`👤 User ${otherParticipant.id} (${otherParticipant.firstName}) online status: ${isOnline}`);
 
                 return {
                     id: conv.id,
@@ -83,6 +103,7 @@ export class MessagesService {
                         lastName: otherParticipant.lastName,
                         avatar: otherParticipant.avatar,
                         role: otherParticipant.role,
+                        isOnline,
                     },
                     craft: conv.craft ? {
                         id: conv.craft.id,
@@ -114,17 +135,21 @@ export class MessagesService {
         page: number = 1,
         limit: number = 50,
     ): Promise<{ messages: Message[]; total: number; conversation: Conversation }> {
+        //this.logger.log(`💬 Getting messages for conversation ${conversationId} (user: ${userId})`);
+        
         const conversation = await this.conversationRepository.findOne({
             where: { id: conversationId },
             relations: ['participant1', 'participant2', 'craft'],
         });
 
         if (!conversation) {
+            this.logger.error(`❌ Conversation ${conversationId} not found`);
             throw new NotFoundException('Conversation not found');
         }
 
         // Verify user is part of conversation
         if (conversation.participant1Id !== userId && conversation.participant2Id !== userId) {
+            this.logger.error(`❌ User ${userId} is not part of conversation ${conversationId}`);
             throw new ForbiddenException('You are not part of this conversation');
         }
 
@@ -138,15 +163,35 @@ export class MessagesService {
             take: limit,
         });
 
+      //  this.logger.log(`💬 Found ${messages.length} messages for conversation ${conversationId}`);
+
         // Mark messages as read
-        await this.messageRepository.update(
-            {
+        const unreadMessages = await this.messageRepository.find({
+            where: {
                 conversation: { id: conversationId },
                 senderId: Not(userId),
                 status: Not(MessageStatus.READ),
             },
-            { status: MessageStatus.READ, readAt: new Date() }
-        );
+        });
+
+        if (unreadMessages.length > 0) {
+           // this.logger.log(`👁️ Marking ${unreadMessages.length} messages as read in conversation ${conversationId}`);
+            
+            const messageIds = unreadMessages.map(m => m.id);
+
+            await this.messageRepository.update(
+                { id: In(messageIds) },
+                { status: MessageStatus.READ, readAt: new Date() }
+            );
+
+            // Notify sender via WebSocket
+            const otherParticipantId = conversation.participant1Id === userId
+                ? conversation.participant2Id
+                : conversation.participant1Id;
+
+          //  this.logger.log(`📢 Sending read receipt to user ${otherParticipantId}`);
+            this.messagesGateway.sendReadReceipt(conversationId, userId);
+        }
 
         return { messages: messages.reverse(), total, conversation };
     }
@@ -159,10 +204,13 @@ export class MessagesService {
         createConversationDto: CreateConversationDto,
     ): Promise<Conversation> {
         const { recipientId, craftId, subject, initialMessage } = createConversationDto;
+        
+        //this.logger.log(`🆕 Starting conversation from user ${sender.id} to user ${recipientId}`);
 
         // Check if recipient exists
         const recipient = await this.userRepository.findOne({ where: { id: recipientId } });
         if (!recipient) {
+            this.logger.error(`❌ Recipient ${recipientId} not found`);
             throw new NotFoundException('Recipient not found');
         }
 
@@ -174,7 +222,7 @@ export class MessagesService {
         // Check if craft exists (if provided)
         let craft = null;
         if (craftId) {
-            craft = await this.craftRepository.findOne({ 
+            craft = await this.craftRepository.findOne({
                 where: { id: craftId },
                 relations: ['artisan'],
             });
@@ -189,14 +237,31 @@ export class MessagesService {
                 { participant1Id: sender.id, participant2Id: recipientId },
                 { participant1Id: recipientId, participant2Id: sender.id },
             ],
+            relations: ['participant1', 'participant2', 'craft', 'messages'],
         });
 
         if (existingConversation) {
+           // this.logger.log(`📝 Conversation already exists (ID: ${existingConversation.id}), adding message`);
+            
             // If conversation exists, just add a new message
-            await this.sendMessage(sender, {
+            const message = await this.sendMessage(sender, {
                 conversationId: existingConversation.id,
                 content: initialMessage,
             });
+
+            // Notify via WebSocket
+            this.messagesGateway.sendNewMessage(
+                recipientId.toString(),
+                {
+                    id: message.id,
+                    conversationId: existingConversation.id,
+                    senderId: sender.id,
+                    senderName: `${sender.firstName} ${sender.lastName}`,
+                    content: initialMessage,
+                    createdAt: message.createdAt,
+                }
+            );
+
             return existingConversation;
         }
 
@@ -213,6 +278,7 @@ export class MessagesService {
         });
 
         const savedConversation = await this.conversationRepository.save(conversation);
+        //this.logger.log(`✅ Created new conversation with ID: ${savedConversation.id}`);
 
         // Create initial message
         const message = this.messageRepository.create({
@@ -223,12 +289,14 @@ export class MessagesService {
         });
 
         await this.messageRepository.save(message);
+       // this.logger.log(`✅ Created initial message with ID: ${message.id}`);
 
         // Update last message preview
         savedConversation.lastMessagePreview = initialMessage.substring(0, 100);
         await this.conversationRepository.save(savedConversation);
 
-        // Send real-time notification
+        // Send real-time notification via WebSocket
+        //this.logger.log(`📢 Sending new conversation notification to user ${recipientId}`);
         this.messagesGateway.sendNewMessageNotification(
             recipientId.toString(),
             {
@@ -258,6 +326,8 @@ export class MessagesService {
      */
     async sendMessage(sender: User, sendMessageDto: SendMessageDto): Promise<Message> {
         const { conversationId, content, attachments } = sendMessageDto;
+        
+        //this.logger.log(`📨 Sending message in conversation ${conversationId} from user ${sender.id}`);
 
         const conversation = await this.conversationRepository.findOne({
             where: { id: conversationId },
@@ -265,13 +335,23 @@ export class MessagesService {
         });
 
         if (!conversation) {
+            this.logger.error(`❌ Conversation ${conversationId} not found`);
             throw new NotFoundException('Conversation not found');
         }
 
         // Verify user is part of conversation
         if (conversation.participant1Id !== sender.id && conversation.participant2Id !== sender.id) {
+            this.logger.error(`❌ User ${sender.id} is not part of conversation ${conversationId}`);
             throw new ForbiddenException('You are not part of this conversation');
         }
+
+        // Determine if recipient is online
+        const recipientId = conversation.participant1Id === sender.id
+            ? conversation.participant2Id
+            : conversation.participant1Id;
+
+        const isRecipientOnline = this.messagesGateway.isUserOnline(recipientId);
+        //this.logger.log(`📱 Recipient ${recipientId} online status: ${isRecipientOnline}`);
 
         // Create message
         const message = this.messageRepository.create({
@@ -279,22 +359,19 @@ export class MessagesService {
             sender,
             content,
             attachments,
-            status: MessageStatus.SENT,
+            status: isRecipientOnline ? MessageStatus.DELIVERED : MessageStatus.SENT,
         });
 
         const savedMessage = await this.messageRepository.save(message);
+        //this.logger.log(`✅ Message saved with ID: ${savedMessage.id}`);
 
         // Update conversation
         conversation.lastMessageAt = new Date();
         conversation.lastMessagePreview = content.substring(0, 100);
         await this.conversationRepository.save(conversation);
 
-        // Get recipient
-        const recipientId = conversation.participant1Id === sender.id 
-            ? conversation.participant2Id 
-            : conversation.participant1Id;
-
-        // Send real-time notification
+        // Send real-time message via WebSocket
+      //  this.logger.log(`📢 Sending real-time message to user ${recipientId}`);
         this.messagesGateway.sendNewMessage(
             recipientId.toString(),
             {
@@ -304,6 +381,7 @@ export class MessagesService {
                 senderName: `${sender.firstName} ${sender.lastName}`,
                 content,
                 createdAt: savedMessage.createdAt,
+                status: isRecipientOnline ? 'delivered' : 'sent',
             }
         );
 
@@ -314,7 +392,9 @@ export class MessagesService {
      * Mark messages as read
      */
     async markAsRead(userId: number, conversationId: number): Promise<void> {
-        await this.messageRepository.update(
+      //  this.logger.log(`👁️ Marking messages as read in conversation ${conversationId} for user ${userId}`);
+        
+        const result = await this.messageRepository.update(
             {
                 conversation: { id: conversationId },
                 senderId: Not(userId),
@@ -323,14 +403,21 @@ export class MessagesService {
             { status: MessageStatus.READ, readAt: new Date() }
         );
 
-        // Notify sender that messages were read
-        this.messagesGateway.sendReadReceipt(conversationId, userId);
+       // this.logger.log(`👁️ Marked ${result.affected} messages as read`);
+
+        if (result.affected && result.affected > 0) {
+            // Notify sender that messages were read
+           // this.logger.log(`📢 Sending read receipt for conversation ${conversationId}`);
+            this.messagesGateway.sendReadReceipt(conversationId, userId);
+        }
     }
 
     /**
      * Archive conversation
      */
     async archiveConversation(userId: number, conversationId: number): Promise<void> {
+        //this.logger.log(`📦 Archiving conversation ${conversationId} for user ${userId}`);
+        
         const conversation = await this.conversationRepository.findOne({
             where: { id: conversationId },
         });
@@ -348,12 +435,15 @@ export class MessagesService {
         }
 
         await this.conversationRepository.save(conversation);
+        //this.logger.log(`✅ Conversation ${conversationId} archived`);
     }
 
     /**
      * Delete conversation (soft delete)
      */
     async deleteConversation(userId: number, conversationId: number): Promise<void> {
+        //this.logger.log(`🗑️ Deleting conversation ${conversationId} for user ${userId}`);
+        
         const conversation = await this.conversationRepository.findOne({
             where: { id: conversationId },
         });
@@ -377,8 +467,10 @@ export class MessagesService {
         // If both users have deleted, actually delete the conversation
         if (conversation.participant1Deleted && conversation.participant2Deleted) {
             await this.conversationRepository.remove(conversation);
+         //   this.logger.log(`✅ Conversation ${conversationId} permanently deleted`);
         } else {
             await this.conversationRepository.save(conversation);
+//this.logger.log(`✅ Conversation ${conversationId} soft deleted for user ${userId}`);
         }
     }
 
@@ -386,6 +478,8 @@ export class MessagesService {
      * Get unread count for user
      */
     async getUnreadCount(userId: number): Promise<number> {
+        //this.logger.log(`🔢 Getting unread count for user ${userId}`);
+        
         const conversations = await this.conversationRepository.find({
             where: [
                 { participant1Id: userId, participant1Deleted: false },
@@ -396,15 +490,99 @@ export class MessagesService {
         const conversationIds = conversations.map(c => c.id);
 
         if (conversationIds.length === 0) {
+          //  this.logger.log(`🔢 No conversations found for user ${userId}`);
             return 0;
         }
 
-        return this.messageRepository.count({
+        const count = await this.messageRepository.count({
             where: {
                 conversation: { id: In(conversationIds) },
                 senderId: Not(userId),
                 status: Not(MessageStatus.READ),
             },
         });
+
+     //   this.logger.log(`🔢 User ${userId} has ${count} unread messages`);
+        return count;
+    }
+
+    /**
+     * Save message (called from gateway)
+     */
+    async saveMessage(data: {
+        conversationId: number;
+        senderId: number;
+        content: string;
+        status: MessageStatus;
+    }): Promise<Message> {
+        //this.logger.log(`💾 Saving message from gateway: conversation ${data.conversationId}, sender ${data.senderId}`);
+        
+        const conversation = await this.conversationRepository.findOne({
+            where: { id: data.conversationId }
+        });
+
+        if (!conversation) {
+            this.logger.error(`❌ Conversation ${data.conversationId} not found`);
+            throw new NotFoundException('Conversation not found');
+        }
+
+        const sender = await this.userRepository.findOne({
+            where: { id: data.senderId }
+        });
+
+        if (!sender) {
+            this.logger.error(`❌ Sender ${data.senderId} not found`);
+            throw new NotFoundException('Sender not found');
+        }
+
+        const message = this.messageRepository.create({
+            conversation,
+            sender,
+            content: data.content,
+            status: data.status,
+        });
+
+        const savedMessage = await this.messageRepository.save(message);
+        //this.logger.log(`✅ Message saved with ID: ${savedMessage.id}`);
+
+        // Update conversation last message
+        conversation.lastMessageAt = new Date();
+        conversation.lastMessagePreview = data.content.substring(0, 100);
+        await this.conversationRepository.save(conversation);
+
+        return savedMessage;
+    }
+
+    /**
+     * Mark messages as read by IDs
+     */
+    async markMessagesAsRead(messageIds: number[], readerId: number): Promise<void> {
+        if (messageIds.length === 0) return;
+        
+       // this.logger.log(`👁️ Marking ${messageIds.length} messages as read by user ${readerId}`);
+
+        await this.messageRepository.update(
+            { id: In(messageIds) },
+            { status: MessageStatus.READ, readAt: new Date() }
+        );
+    }
+
+    /**
+     * Get conversation by ID
+     */
+    async getConversation(conversationId: number): Promise<Conversation> {
+        //this.logger.log(`🔍 Getting conversation ${conversationId}`);
+        
+        const conversation = await this.conversationRepository.findOne({
+            where: { id: conversationId },
+            relations: ['participant1', 'participant2'],
+        });
+
+        if (!conversation) {
+            this.logger.error(`Conversation ${conversationId} not found`);
+            throw new NotFoundException('Conversation not found');
+        }
+
+        return conversation;
     }
 }

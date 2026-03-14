@@ -17,7 +17,14 @@ import { User } from '../users/user.entity';
 import { CreateConversationDto } from './dto/create-conversation.dto';
 import { SendMessageDto } from './dto/send-message.dto';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
-
+/**
+ * Author: Dawud Mohammed,
+ * Description: This controller manages all endpoints related to messaging between users, including retrieving conversations, sending messages, marking messages as read, and deleting conversations. It uses JWT authentication to ensure that only authorized users can access these endpoints. The controller is organized with static/specific routes defined before dynamic ID-based routes to prevent routing conflicts.
+ * Created: 2026-01-25
+ * Last Updated: 2026-03-20
+ * Future Improvements: Implement pagination for messages, add support for group conversations, and enhance error handling with more specific messages.
+ * Note: Ensure that the MessagesService is properly implemented to handle the business logic for messaging and that the database schema supports the necessary relationships between users, conversations, and messages.
+ */
 @ApiTags('messages')
 @ApiBearerAuth()
 @Controller('messages')

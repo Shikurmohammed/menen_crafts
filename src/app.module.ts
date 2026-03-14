@@ -66,7 +66,7 @@ import { MessagesModule } from './messages/messages.module';
   providers: [
     {
       provide: APP_GUARD,
-      useClass: CustomThrottlerGuard, //ThrottlerGuard,
+      useClass: CustomThrottlerGuard, // Use custom throttler guard for global rate limiting
     }
   ]
 })

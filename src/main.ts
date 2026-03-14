@@ -20,16 +20,16 @@ import { LoggingInterceptor } from './interceptors/LoggingInterceptor';
 */
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule,
-    {logger: ['log', 'error', 'warn'],}
+    { logger: ['log', 'error', 'warn'], }
   );
   app.useGlobalInterceptors(new LoggingInterceptor());
 
   app.use(cookieParser());
   // Security middleware
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow images/cookies across ports
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false, // Disable CSP in dev to avoid blocking Swagger/Scripts
-}));
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" }, // Allow images/cookies across ports
+    contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false, // Disable CSP in dev to avoid blocking Swagger/Scripts
+  }));
 
   // Compression middleware
   app.use(compression());
@@ -57,6 +57,7 @@ app.use(helmet({
       whitelist: true,
       transform: true,
       forbidNonWhitelisted: false,
+      transformOptions: { enableImplicitConversion: true },
       exceptionFactory: (validationErrors) => {
         // Extract just the error strings from the constraints object
         const messages = validationErrors.map((error) =>
@@ -65,6 +66,22 @@ app.use(helmet({
         // Log this to your terminal to see EXACTLY which field is failing
         console.log('Validation failing for:', messages);
 
+        return new BadRequestException(messages);
+      },
+    }),
+  );
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      // Add this line to allow Nest to convert "true" (string) to true (boolean)
+      transformOptions: { enableImplicitConversion: true },
+      forbidNonWhitelisted: false,
+      exceptionFactory: (validationErrors) => {
+        const messages = validationErrors.flatMap((error) =>
+          Object.values(error.constraints || {})
+        );
+        console.log('Validation failing for:', messages);
         return new BadRequestException(messages);
       },
     }),

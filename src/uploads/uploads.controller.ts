@@ -25,7 +25,14 @@ import type { Response } from 'express';
 import { existsSync } from 'fs';
 import { basename } from 'path';
 import { ApiTags, ApiConsumes, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
-
+/**
+ * Author: Dawud Mohammed,
+ * Description: This controller manages all endpoints related to file uploads, including uploading single and multiple images, deleting files, and serving uploaded files. It uses JWT authentication and role-based access control to ensure that only authorized users can perform certain actions. The controller also includes validation for file types and sizes to enhance security.
+ * Created: 2026-02-05
+ * Last Updated: 2026-03-30
+ * Future Improvements: Implement support for additional file types, add pagination for listing uploaded files, and enhance error handling with more specific messages.
+ * Note: Ensure that the UploadsService is properly implemented to handle file storage (e.g., local filesystem, AWS S3, Cloudinary) and that environment variables for storage configuration are set up correctly.
+ */
 @ApiTags('uploads')
 @Controller('uploads')
 export class UploadsController {

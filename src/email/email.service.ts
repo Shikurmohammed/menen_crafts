@@ -67,7 +67,6 @@ export class EmailService {
      */
  async sendPasswordResetEmail(user: User, resetToken: string): Promise<void> {
     try {
-       // const resetUrl = `${this.configService.get('FRONTEND_URL')}/reset-password?token=${resetToken}`;
           const resetUrl = `${this.configService.get('FRONTEND_URL', 'http://localhost:3000')}/forgot-password?token=${resetToken}`;
         await this.mailerService.sendMail({
             to: user.email,

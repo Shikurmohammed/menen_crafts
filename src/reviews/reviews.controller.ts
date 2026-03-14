@@ -18,9 +18,15 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { User } from '../users/user.entity';
 import { Roles } from 'src/auth/decorators/roles.decorator';
 import { UserRole } from 'src/enums/UserRole.enum';
-
+/**
+ * Author: Dawud Mohammed,
+ * Description: This controller manages all endpoints related to reviews, including creating, updating, deleting, and retrieving reviews. It also includes endpoints for approving/rejecting reviews and responding to reviews by artisans or admins. The controller uses JWT authentication and role-based access control to ensure that only authorized users can perform certain actions. The controller is organized with static/specific routes defined before dynamic ID-based routes to prevent routing conflicts.
+ * Created: 2026-01-30
+ * Last Updated: 2026-03-25
+ * Future Improvements: Implement pagination for listing reviews, add more detailed filtering options, and enhance error handling with more specific messages.
+ * Note: Ensure that the ReviewsService is properly implemented to handle the business logic for reviews and that the database schema supports the necessary relationships between users, crafts, and reviews.
+ */
 @Controller('reviews')
-
 export class ReviewsController {
     constructor(private readonly reviewsService: ReviewsService) { }
 

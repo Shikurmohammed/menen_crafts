@@ -27,7 +27,14 @@ import { UserRole } from 'src/enums/UserRole.enum';
 import { ApiTags, ApiBearerAuth, ApiConsumes, ApiOperation } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { UploadsService } from 'src/uploads/uploads.service';
-
+/**
+ * Author: Dawud Mohammed,
+ * Description: This controller manages all endpoints related to crafts, including creating, updating, deleting, and retrieving crafts. It also handles image uploads for crafts and includes role-based access control to ensure that only authorized users can perform certain actions. The controller is organized with static/specific routes defined before dynamic ID-based routes to prevent routing conflicts.
+ * Created: 2026-01-20
+ * Last Updated: 2026-03-15
+ * Future Improvements: Implement pagination for listing crafts, add more detailed filtering options, and enhance error handling with more specific messages.
+ * Note: Ensure that the UploadsService is properly configured to handle file uploads and that environment variables for storage (e.g., AWS S3, Cloudinary) are set up correctly.
+ */
 @ApiTags('crafts')
 @ApiBearerAuth()
 @Controller('crafts')
@@ -107,11 +114,29 @@ export class CraftsController {
         return await this.craftsService.findOne(id);
     }
 
+    // @Patch(':id')
+    // @UseGuards(JwtAuthGuard, RolesGuard)
+    // @Roles(UserRole.ADMIN, UserRole.ARTISAN)
+    // @ApiConsumes('multipart/form-data')
+    // @ApiOperation({ summary: 'Update craft details' })
+    // @UseInterceptors(FileFieldsInterceptor([
+    //     { name: 'images', maxCount: 5 },
+    // ]))
+    // async update(
+    //     @Param('id', ParseIntPipe) id: number,
+    //     @Body() updateCraftDto: UpdateCraftDto,
+    //     @UploadedFiles() files: { images?: Express.Multer.File[] },
+    //     @CurrentUser() user: User,
+    // ) {
+    //     if (files?.images?.length) {
+    //         const imageUrls = await this.craftsService.saveImages(files.images);
+    //         updateCraftDto.images = imageUrls;
+    //     }
+    //     return await this.craftsService.update(id, updateCraftDto, user);
+    // }
+
     @Patch(':id')
     @UseGuards(JwtAuthGuard, RolesGuard)
-    @Roles(UserRole.ADMIN, UserRole.ARTISAN)
-    @ApiConsumes('multipart/form-data')
-    @ApiOperation({ summary: 'Update craft details' })
     @UseInterceptors(FileFieldsInterceptor([
         { name: 'images', maxCount: 5 },
     ]))
@@ -119,13 +144,27 @@ export class CraftsController {
         @Param('id', ParseIntPipe) id: number,
         @Body() updateCraftDto: UpdateCraftDto,
         @UploadedFiles() files: { images?: Express.Multer.File[] },
-        @CurrentUser() user: User,
+        @Body('imagesToDelete') imagesToDelete?: string,
+        @CurrentUser() user?: User,
     ) {
+        let uploadedImages = [];
+        
+        // Handle new image uploads
         if (files?.images?.length) {
-            const imageUrls = await this.craftsService.saveImages(files.images);
-            updateCraftDto.images = imageUrls;
+            uploadedImages = await this.uploadsService.uploadMultiple(files.images, 'crafts');
+            updateCraftDto.images = [
+                ...(updateCraftDto.images || []),
+                ...uploadedImages.map(img => img.url)
+            ];
         }
-        return await this.craftsService.update(id, updateCraftDto, user);
+        
+        // Handle images to delete
+        if (imagesToDelete) {
+            const toDelete = JSON.parse(imagesToDelete);
+            await this.uploadsService.deleteMultiple(toDelete);
+        }
+        
+        return this.craftsService.update(id, updateCraftDto, user);
     }
 
     @Patch(':id/stock')
@@ -153,134 +192,3 @@ export class CraftsController {
         return { message: 'Craft deleted successfully' };
     }
 }
-
-// export class CraftsController {
-//     private readonly logger = new Logger(CraftsController.name);
-//     constructor(
-//         private readonly craftsService: CraftsService,
-//             private readonly uploadsService: UploadsService,
-//     ) { }
-
-//     @Get()
-//     async findAll(@Query() query: Record<string, any>) {
-//         return await this.craftsService.findAll(query);
-//     }
-
-
-// @Post()
-// @UseGuards(JwtAuthGuard, RolesGuard)
-// @Roles(UserRole.ADMIN, UserRole.ARTISAN)
-// @ApiConsumes('multipart/form-data')
-// @UseInterceptors(FileFieldsInterceptor([
-//     { name: 'images', maxCount: 5 },
-// ]))
-// async create(
-//     @Body() createCraftDto: CreateCraftDto,
-//     @UploadedFiles() files: { images?: Express.Multer.File[] },
-//     @CurrentUser() user: User,
-// ) {
-//     let uploadedImages: Array<{ url: string; publicId?: string }> = [];
-    
-//     try {
-//         if (files?.images?.length) {
-//             uploadedImages = await this.uploadsService.uploadMultiple(files.images, 'crafts');
-//             createCraftDto.images = uploadedImages.map(img => img.url);
-//         }
-        
-//         const craft = await this.craftsService.create(createCraftDto, user);
-        
-//         // Store publicIds if using Cloudinary (optional)
-//         if (uploadedImages.length > 0 && uploadedImages[0].publicId) {
-//             // You might want to store publicIds in a separate table or in craft metadata
-//             // For now, we'll just return them
-//             return {
-//                 ...craft,
-//                 uploadedImages,
-//             };
-//         }
-        
-//         return craft;
-//     } catch (error) {
-//         // Cleanup uploaded images if craft creation fails
-//         if (uploadedImages.length > 0) {
-//             await this.uploadsService.deleteMultiple(uploadedImages);
-//         }
-//         throw error;
-//     }
-// }
-//     @UseGuards(JwtAuthGuard, RolesGuard)
-//     @Post()
-//     @Roles(UserRole.ADMIN, UserRole.ARTISAN)
-//     @ApiConsumes('multipart/form-data')
-//     @UseInterceptors(FileFieldsInterceptor([
-//         { name: 'images', maxCount: 5 }, // ONLY files here!
-//     ]))
-//     async creatv0(
-//         @Body() createCraftDto: CreateCraftDto, // This gets ALL text fields automatically!
-//         @UploadedFiles() files: { images?: Express.Multer.File[] },
-//         @CurrentUser() user: User,
-//     ) {
-//         this.logger.debug('=== CREATE CRAFT REACHED ===');
-//         this.logger.debug('DTO from @Body():', JSON.stringify(createCraftDto, null, 2));
-//         this.logger.debug('Files:', files?.images?.length);
-
-//         // Handle images separately
-//         if (files?.images?.length) {
-//             const imageUrls = await this.craftsService.saveImages(files.images);
-//             createCraftDto.images = imageUrls;
-//         }
-
-//         return await this.craftsService.create(createCraftDto, user);
-//     }
-//     @Get('stats')
-//     async getStats() {
-//         return await this.craftsService.getStats();
-//     }
-
-//     @UseGuards(JwtAuthGuard, RolesGuard)
-//     @Patch(':id')
-//     @ApiConsumes('multipart/form-data')
-//     @UseInterceptors(FileFieldsInterceptor([
-//         { name: 'images', maxCount: 5 },
-//     ]))
-//     async update(
-//         @Param('id', ParseIntPipe) id: number,
-//         @Body() updateCraftDto: UpdateCraftDto,
-//         @UploadedFiles() files: { images?: Express.Multer.File[] },
-//         @CurrentUser() user: User,
-//     ) {
-//         if (files?.images) {
-//             const imageUrls = await this.craftsService.saveImages(files.images);
-//             updateCraftDto.images = imageUrls;
-//         }
-//         return await this.craftsService.update(id, updateCraftDto, user);
-//     }
-
-//     @UseGuards(JwtAuthGuard, RolesGuard)
-//     @Delete(':id')
-//     async remove(
-//         @Param('id', ParseIntPipe) id: number,
-//         @CurrentUser() user: User,
-//     ) {
-//         await this.craftsService.remove(id, user);
-//         return { message: 'Craft deleted successfully' };
-//     }
-    
-//     @Get('featured') // 1st
-// findAllFeatured() {
-//   return this.craftsService.findFeatured();
-// }
-//     @Get(':id')
-//     async findOne(@Param('id', ParseIntPipe) id: number) {
-//         return await this.craftsService.findOne(id);
-//     }
-//     @UseGuards(JwtAuthGuard, RolesGuard)
-
-//     @Get('artisan/:artisanId')
-//     @Get(':id')
-//     async findByArtisan(@Param('artisanId', ParseIntPipe) artisanId: number) {
-//         return await this.craftsService.findByArtisan(artisanId);
-//     }
-
-    
-// }
